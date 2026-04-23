@@ -1,39 +1,75 @@
 const { merge } = require('webpack-merge');
 const common = require("./webpack.common");
 const path = require("path");
-const HtmlWebpackPlugin = require("html-webpack-plugin");
 
+// -----------------------------------------------------------------------------
+// webpack.dev.js
+// -----------------------------------------------------------------------------
+// Development-focused configuration merged on top of webpack.common.js.
+// Goals in dev:
+// - Fast incremental rebuilds
+// - Easy debugging
+// - Good local developer experience (auto-open, HMR/live updates)
+// -----------------------------------------------------------------------------
 module.exports = merge(common, {
-    mode: "development", // by default webpack builds in production mode, so development is specified here explicitly.ˀ development mode doesn't minify code
-    // entry: "./src/index.js",
+    // Enables webpack's development defaults:
+    // - unminified output
+    // - more useful warning messages
+    // - faster compile strategy than production mode
+    mode: "development",
+    // Source maps map bundled code back to original source in devtools.
+    // `eval-cheap-module-source-map` is a common fast dev choice.
+    devtool: "eval-cheap-module-source-map",
+    // Keep filenames stable and readable during development.
+    // Hashes are avoided in dev for speed and clarity.
     output: {
-        filename: "[name].bundle.js", // cache-busting: creates a dynamic name everytime something is changed in the index.js or other code files. To point to this dynamic named script file to the index.html we need to use HtmlWebpackPlugin
-        path: path.resolve(__dirname, "dist")
+        filename: "[name].bundle.js"
+    },
+    // Local dev server behavior.
+    devServer: {
+        // Serve static content from `dist`.
+        // For webpack-dev-server this is usually in-memory plus static fallback.
+        static: {
+            directory: path.resolve(__dirname, "dist")
+        },
+        // Hot Module Replacement:
+        // updates changed modules without full page reload (where possible).
+        hot: true,
+        // Open browser automatically when server starts.
+        open: true
     },
     module: {
         rules: [
             {
-                test: /\.scss$/i, // match all files which end with .scss
+                // Apply this loader chain to .scss files.
+                test: /\.scss$/i,
                 use: [
-                    "style-loader", // 3. it takes the converted javscript from css loader and places it in the minfied javascript files and then applies it to DOM by injecting script tag 
-                    "css-loader",   // 2. takes processed css files to convert them to javscript but doesn't apply it to DOM
-                    "sass-loader"   // 1. pre-processes scss files to css
-                ], // use these loaders to preprocess those files
+                    // Loader order runs from LAST -> FIRST:
+                    // 1) sass-loader compiles SCSS -> CSS
+                    // 2) css-loader resolves imports/url and turns CSS into module
+                    // 3) style-loader injects CSS into the page at runtime
+                    "style-loader",
+                    "css-loader",
+                    {
+                        loader: "sass-loader",
+                        options: {
+                            sassOptions: {
+                                // Suppress noisy warnings from dependencies you don't control.
+                                quietDeps: true,
+                                // Silence known Sass @import deprecation warnings temporarily.
+                                // Useful while older libs (e.g. Bootstrap 4) still use @import.
+                                silenceDeprecations: ["import"]
+                            }
+                        }
+                    }
+                ],
             }
         ]
-    },
-    plugins:[
-        new HtmlWebpackPlugin(
-            {
-                template: "./src/template.html" // Tells which template to use to create index.html in dist folder. This is optional
-            }
-        ) // This plugin by default creates a index.html file in the dist folder and dynamically appends a script tag to that html (index.html) file with <output.filename> as the src, so that the dynamically created main.[chunkhash].js file is included in the final bundle.
-    ]
+    }
 });
 
-// ************** style-loader VS MiniCssExtractPlugin  *************
-
-// style-loader takes the converted javscript from css loader and places it in the minfied javascript file. In this scenario while loading DOM there is no style tag encountered and style is applied after DOM has loaded and all the js files have loaded. So, there is a flicker on the screen. To avoid this MiniCssExtractPlugin is used.
-
-// MiniCssExtractPlugin takes the converted javscript from CSS loader and creates a css file and then injects a style tag in the DOM pointing it to that CSS. This way while rendering the DOM styke tag is encountered and styles are applied simultaneously and flickering is not experienced.
+// Notes:
+// - `style-loader` is preferred in development because updates appear instantly.
+// - In production, you generally extract CSS into real files
+//   (see MiniCssExtractPlugin usage in webpack.prod.js).
 
